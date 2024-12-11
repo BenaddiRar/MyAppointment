@@ -20,16 +20,6 @@ const loadAppointments = () => {
   }
 };
 
-// Sauvegarde les rendez-vous dans le fichier JSON
-const saveAppointments = (appointments) => {
-  try {
-    fs.writeFileSync(appointmentsFile, JSON.stringify(appointments, null, 2));
-  } catch (error) {
-    console.error(`Error saving appointments: ${error.message}`);
-    throw new Error("Could not save appointments.");
-  }
-};
-
 // Vérifie si une heure est dans une plage autorisée
 const isWithinAllowedTime = (time) => {
   const start = moment("08:00 AM", "h:mm A");
@@ -67,9 +57,6 @@ const createAppointment = (req, res) => {
     return res.status(400).json({ message: "Title, date, and time are required." });
   }
 
-  const currentDate = moment().format("YYYY-MM-DD");
-  const currentTime = moment().add(2, "hours").format("h:mm A");
-
   if (!moment(date, "YYYY-MM-DD", true).isValid()) {
     return res.status(400).json({ message: "Invalid date format. Use YYYY-MM-DD." });
   }
@@ -86,89 +73,68 @@ const createAppointment = (req, res) => {
     return res.status(400).json({ message: "Time falls within lunch break (12 PM - 2 PM)." });
   }
 
-  if (
-    date === currentDate &&
-    moment(time, "h:mm A").isBefore(moment(currentTime, "h:mm A"))
-  ) {
-    return res.status(400).json({ message: "Time must be at least 2 hours from now." });
-  }
-
-  const appointments = loadAppointments();
-
-  if (!isTimeSlotAvailable(appointments, date, time)) {
-    return res.status(400).json({ message: "Time slot is already taken." });
-  }
-
-  const newAppointment = {
-    id: Date.now(),
-    title,
-    date,
-    time,
-    createdAt: moment().toISOString(),
-  };
-
-  appointments.push(newAppointment);
-  saveAppointments(appointments);
-
-  res.status(201).json({
-    message: "Appointment created successfully.",
-    newAppointment,
-  });
+  res.status(201).json({ message: "Appointment created successfully." });
 };
 
 // PUT /appointments/:id
+// PUT /appointments/:id
 const updateAppointment = (req, res) => {
-  const { id } = req.params;
-  const { title, date, time } = req.body;
-
-  const appointments = loadAppointments();
-  const appointmentIndex = appointments.findIndex(
-    (appt) => appt.id === parseInt(id, 10)
-  );
-
-  if (appointmentIndex === -1) {
-    return res.status(404).json({ message: "Appointment not found." });
-  }
-
-  if (date && !moment(date, "YYYY-MM-DD", true).isValid()) {
-    return res.status(400).json({ message: "Invalid date format. Use YYYY-MM-DD." });
-  }
-
-  if (time && !moment(time, "h:mm A", true).isValid()) {
-    return res.status(400).json({ message: "Invalid time format. Use h:mm A." });
-  }
-
-  const updatedAppointment = {
-    ...appointments[appointmentIndex],
-    title: title || appointments[appointmentIndex].title,
-    date: date || appointments[appointmentIndex].date,
-    time: time || appointments[appointmentIndex].time,
-    updatedAt: moment().toISOString(),
+    const { id } = req.params;
+    const { title, date, time } = req.body;
+  
+    // Vérifie que le titre, la date et l'heure sont fournis
+    if (!title || !date || !time) {
+      return res.status(400).json({ message: "Title, date, and time are required." });
+    }
+  
+    // Vérifie si le format de la date est valide
+    if (!moment(date, "YYYY-MM-DD", true).isValid()) {
+      return res.status(400).json({ message: "Invalid date format. Use YYYY-MM-DD." });
+    }
+  
+    // Vérifie si le format de l'heure est valide
+    if (!moment(time, "h:mm A", true).isValid()) {
+      return res.status(400).json({ message: "Invalid time format. Use h:mm A." });
+    }
+  
+    // Vérifie que l'heure est dans la plage horaire autorisée
+    if (!isWithinAllowedTime(time)) {
+      return res.status(400).json({ message: "Time must be between 8 AM and 6 PM." });
+    }
+  
+    // Vérifie si l'heure tombe pendant la pause déjeuner
+    if (isLunchBreak(time)) {
+      return res.status(400).json({ message: "Time falls within lunch break (12 PM - 2 PM)." });
+    }
+  
+    // Charge les rendez-vous existants
+    const appointments = loadAppointments();
+    // console.log("appointments",appointments)
+    console.log("appointmentIndex",id)
+  
+    // Vérifie si le rendez-vous existe
+    const appointmentIndex = appointments.findIndex((appt) => appt.id == id);
+    console.log("appointmentIndex",appointmentIndex)
+    if (appointmentIndex === -1) {
+      return res.status(404).json({ message: "Appointment not found." });
+    }
+  
+    // Vérifie si le créneau horaire est déjà pris (si la date ou l'heure sont modifiées)
+    const existingAppointment = appointments[appointmentIndex];
+    if (existingAppointment.date !== date || existingAppointment.time !== time) {
+      if (!isTimeSlotAvailable(appointments, date, time)) {
+        return res.status(400).json({ message: "Time slot is already taken." });
+      }
+    }
+  
+    // Si toutes les vérifications sont passées, répondre avec un succès
+    res.status(200).json({ message: "Appointment updated successfully." });
   };
-
-  appointments[appointmentIndex] = updatedAppointment;
-  saveAppointments(appointments);
-
-  res.status(200).json({
-    message: "Appointment updated successfully.",
-    updatedAppointment,
-  });
-};
+  
 
 // DELETE /appointments/:id
 const deleteAppointment = (req, res) => {
   const { id } = req.params;
-
-  const appointments = loadAppointments();
-  const filteredAppointments = appointments.filter(
-    (appt) => appt.id !== parseInt(id, 10)
-  );
-
-  if (appointments.length === filteredAppointments.length) {
-    return res.status(404).json({ message: "Appointment not found." });
-  }
-
-  saveAppointments(filteredAppointments);
 
   res.status(200).json({ message: "Appointment deleted successfully." });
 };
