@@ -1,0 +1,8 @@
+GET http://localhost:5000/appointments
+Content-Type: application/json
+
+{
+   "title": "Meeting with mohcine",
+   "date": "2024-12-12", 
+   "time": "2:00 PM"
+}
