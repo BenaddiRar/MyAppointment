@@ -1,7 +1,9 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const connectDB = require('./config/db');
-const appointmentsRoutes = require('./routes/appointments');
+const appointmentsRoutes = require('./routes/appointments');``
+require('dotenv').config();
+
 
 // Connect to MongoDB
 connectDB();
